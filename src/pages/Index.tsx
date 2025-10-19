@@ -60,7 +60,7 @@ const Index = () => {
         <div className="space-y-4 sm:mt-0 -mt-2">
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white">
             Unc
-            <span className="text-[#FF8181]">o</span>
+            <span className="text-[#49E0C6]">o</span>
             mmon Resource Hu
             <span className="text-[#FDB353]">b</span>
           </h1>
