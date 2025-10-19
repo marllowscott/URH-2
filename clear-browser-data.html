@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear UR HUB Data</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0747A1 0%, #0A58CA 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #0747A1;
+            font-size: 32px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .warning {
+            background: #FFF3CD;
+            border-left: 4px solid #FDB353;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 5px;
+        }
+        
+        .warning strong {
+            color: #FDB353;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+        
+        .clear-btn {
+            background: #FF8181;
+            color: white;
+        }
+        
+        .clear-btn:hover {
+            background: #ff6666;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 129, 129, 0.4);
+        }
+        
+        .info-btn {
+            background: #0747A1;
+            color: white;
+        }
+        
+        .info-btn:hover {
+            background: #063d8c;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(7, 71, 161, 0.4);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+        
+        .status.success {
+            background: #D1FAE5;
+            color: #065F46;
+            display: block;
+        }
+        
+        .instructions {
+            background: #E6F2FF;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .instructions.show {
+            display: block;
+        }
+        
+        .instructions h3 {
+            color: #0747A1;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .instructions code {
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear UR HUB Data</h1>
+        <p class="subtitle">Reset your system to a fresh state</p>
+        
+        <div class="warning">
+            <strong>⚠️ Warning</strong>
+            <p>This will clear all browser data (localStorage & sessionStorage). You will need to login again.</p>
+        </div>
+        
+        <button class="clear-btn" onclick="clearAllData()">
+            Clear Browser Data
+        </button>
+        
+        <button class="info-btn" onclick="toggleInstructions()">
+            Show Supabase Instructions
+        </button>
+        
+        <div id="status" class="status"></div>
+        
+        <div id="instructions" class="instructions">
+            <h3>📋 Clear Supabase Database</h3>
+            <ol>
+                <li>Go to <code>https://yizqnzxxqokkaountehh.supabase.co</code></li>
+                <li>Navigate to <strong>SQL Editor</strong></li>
+                <li>Copy and run the SQL from <code>clear-supabase.sql</code></li>
+                <li>Go to <strong>Storage</strong> → <strong>resources</strong> bucket</li>
+                <li>Select all files and delete them</li>
+                <li>(Optional) Go to <strong>Authentication</strong> → <strong>Users</strong> to delete test accounts</li>
+            </ol>
+        </div>
+    </div>
+    
+    <script>
+        function clearAllData() {
+            // Clear localStorage
+            localStorage.clear();
+            
+            // Clear sessionStorage
+            sessionStorage.clear();
+            
+            // Show success message
+            const status = document.getElementById('status');
+            status.className = 'status success';
+            status.textContent = '✅ Browser data cleared successfully! Refresh your app to start fresh.';
+            
+            console.log('✅ All browser data cleared!');
+            console.log('🔄 Please refresh your application');
+        }
+        
+        function toggleInstructions() {
+            const instructions = document.getElementById('instructions');
+            instructions.classList.toggle('show');
+        }
+    </script>
+</body>
+</html>
