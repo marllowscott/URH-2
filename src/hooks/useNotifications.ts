@@ -9,6 +9,7 @@ export interface Notification {
   program: string | null;
   read: boolean;
   created_at: string;
+  type: 'resource' | 'course' | 'task';
 }
 
 export interface NotificationCounts {
@@ -32,36 +33,32 @@ export function useNotifications(program?: string) {
       setLoading(true);
       
       const { getNotifications } = await import('@/lib/localStorage');
-      const allNotifications = getNotifications();
-      
+      const all = getNotifications();
+      // Normalize to hook Notification type
+      const normalized: Notification[] = (all as any[]).map((n: any) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body ?? null,
+        program: n.program ?? null,
+        read: !!n.read,
+        created_at: n.created_at ?? n.createdAt ?? new Date().toISOString(),
+        type: (n.type as 'resource' | 'course' | 'task') ?? 'resource',
+      }));
+
       // Filter notifications
-      let filteredNotifications = allNotifications.filter(n => !n.read);
-      
-      if (program) {
-        filteredNotifications = filteredNotifications.filter(n => n.program === program);
-      }
+      let filtered = normalized.filter(n => !n.read);
+      if (program) filtered = filtered.filter(n => n.program === program);
 
       // Sort by creation date (newest first)
-      filteredNotifications.sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      setNotifications(filteredNotifications);
+      setNotifications(filtered);
 
       // Calculate counts
-      const newCourses = filteredNotifications.filter(n => 
-        n.type === 'course'
-      ).length;
-      
-      const newResources = filteredNotifications.filter(n => 
-        n.type === 'resource'
-      ).length;
+      const newCourses = filtered.filter(n => n.type === 'course' || n.type === 'task').length;
+      const newResources = filtered.filter(n => n.type === 'resource').length;
 
-      setCounts({
-        newCourses,
-        newResources,
-        total: filteredNotifications.length
-      });
+      setCounts({ newCourses, newResources, total: filtered.length });
     } catch (error) {
       console.error('Error in loadNotifications:', error);
     } finally {
@@ -88,24 +85,11 @@ export function useNotifications(program?: string) {
         prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       );
 
-      // Recalculate counts
-      const updatedNotifications = notifications.map(n => 
-        n.id === notificationId ? { ...n, read: true } : n
-      );
-      
-      const newCourses = updatedNotifications.filter(n => 
-        !n.read && n.type === 'course'
-      ).length;
-      
-      const newResources = updatedNotifications.filter(n => 
-        !n.read && n.type === 'resource'
-      ).length;
-
-      setCounts({
-        newCourses,
-        newResources,
-        total: updatedNotifications.filter(n => !n.read).length
-      });
+      // Recalculate counts from local state
+      const updated = notifications.map(n => n.id === notificationId ? { ...n, read: true } : n);
+      const newCourses = updated.filter(n => !n.read && (n.type === 'course' || n.type === 'task')).length;
+      const newResources = updated.filter(n => !n.read && n.type === 'resource').length;
+      setCounts({ newCourses, newResources, total: updated.filter(n => !n.read).length });
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }

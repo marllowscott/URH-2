@@ -140,10 +140,13 @@ const InstructorPrograms = () => {
   // CRUD: create/update course
   const handleCreateCourse = async () => {
     if (!newCourse.title.trim()) return;
+    const userResp: any = await supabase.auth.getUser();
+    const createdBy = (userResp?.data?.user || userResp?.user)?.id || null;
     const resp = await supabase.from("courses").insert({
       program: selectedProgram,
       title: newCourse.title.trim(),
       description: newCourse.description || null,
+      created_by: createdBy,
     });
     const error = 'error' in (resp as any) ? (resp as any).error : null;
     if (error) return toast({ title: "Create course failed", description: (error as any).message, variant: "destructive" });
@@ -256,7 +259,16 @@ const InstructorPrograms = () => {
         <div className="flex justify-center mb-6">
           <div className="flex flex-wrap justify-center gap-2 md:gap-4">
             {programs.map((p) => (
-              <Button key={p} variant={selectedProgram === p ? "default" : "outline"} onClick={() => setSelectedProgram(p as any)} className={`rounded-2xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap ${selectedProgram === p ? "bg-[#0747A1] text-white shadow-lg shadow-[#0A58CA]" : "hover:bg-[#E6F2FF]"}`}>
+              <Button
+                key={p}
+                variant="outline"
+                onClick={() => setSelectedProgram(p as any)}
+                className={`rounded-2xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap ${
+                  selectedProgram === p
+                    ? "bg-[#E6F2FF] text-[#0747A1] border border-[#0747A1]/30"
+                    : "hover:bg-[#F2F7FF] text-[#0747A1]"
+                }`}
+              >
                 {p}
               </Button>
             ))}

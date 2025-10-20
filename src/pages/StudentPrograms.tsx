@@ -269,7 +269,16 @@ const StudentPrograms = () => {
         <div className="flex justify-center mb-6">
           <div className="flex flex-wrap justify-center gap-2 md:gap-4">
             {programs.map((p) => (
-              <Button key={p} variant={selectedProgram === p ? "default" : "outline"} onClick={() => setSelectedProgram(p as any)} className={`rounded-2xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap ${selectedProgram === p ? "bg-[#0747A1] text-white shadow-lg shadow-[#0A58CA]" : "hover:bg-[#E6F2FF]"}`}>
+              <Button
+                key={p}
+                variant="outline"
+                onClick={() => setSelectedProgram(p as any)}
+                className={`rounded-2xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap ${
+                  selectedProgram === p
+                    ? "bg-[#E6F2FF] text-[#0747A1] border border-[#0747A1]/30"
+                    : "hover:bg-[#F2F7FF] text-[#0747A1]"
+                }`}
+              >
                 {p}
               </Button>
             ))}

@@ -83,7 +83,12 @@ const Auth = () => {
           variant: "destructive",
         });
       } else if (loginData.session) {
-        const role = loginData.user?.user_metadata?.role || "instructor";
+        // Ensure role metadata exists after auto-login
+        const effectiveRole = loginData.user?.user_metadata?.role;
+        if (!effectiveRole) {
+          try { await (supabase.auth as any).updateUser({ data: { role: selectedRole } }); } catch {}
+        }
+        const role = (effectiveRole || selectedRole || "instructor");
         navigate(role === "instructor" ? "/instructor" : "/student");
       }
     }
@@ -108,8 +113,17 @@ const Auth = () => {
         variant: "destructive",
       });
     } else if (data.session) {
-      const role = data.user?.user_metadata?.role || "instructor";
-      navigate(role === "instructor" ? "/instructor" : "/student");
+      // Patch missing role metadata on existing accounts
+      let role = data.user?.user_metadata?.role as string | undefined;
+      if (!role) {
+        try {
+          await (supabase.auth as any).updateUser({ data: { role: selectedRole } });
+          role = selectedRole;
+        } catch {
+          role = "instructor";
+        }
+      }
+      navigate((role || "instructor") === "instructor" ? "/instructor" : "/student");
     }
 
     setLoading(false);
@@ -157,16 +171,16 @@ const Auth = () => {
         UR HUB
       </button>
       
-      {/* Logo - Mobile */}
-      <button
-        onClick={() => navigate("/")}
-        className="sm:hidden absolute top-4 left-4 bg-[#FF8181] text-white font-bold text-sm px-3 py-1.5 rounded-full hover:bg-[#FF8181]/80 transition-all duration-200 shadow-lg z-10"
-      >
-        UR HUB
-      </button>
-      
       {/* Form Card with smooth animations */}
-      <Card className="w-full max-w-md shadow-2xl relative z-10 animate-in fade-in-0 slide-in-from-bottom-4 zoom-in-95 duration-[400ms] ease-out">
+      <div className="w-full flex flex-col items-center relative z-10">
+        {/* Logo - Mobile */}
+        <button
+          onClick={() => navigate("/")}
+          className="sm:hidden bg-[#FF8181] text-white font-bold text-lg px-4 py-2 rounded-full hover:bg-[#FF8181]/80 transition-all duration-200 shadow-lg mx-auto mb-6"
+        >
+          UR HUB
+        </button>
+        <Card className="w-full max-w-md shadow-2xl relative z-10 animate-in fade-in-0 slide-in-from-bottom-4 zoom-in-95 duration-[400ms] ease-out">
         <CardHeader className="text-center">
           <CardTitle className="text-xl md:text-2xl text-[#0747A1]">Welcome</CardTitle>
           <CardDescription className="text-sm md:text-base">
@@ -176,7 +190,7 @@ const Auth = () => {
         <CardContent>
           <div className="mb-6">
             <Label className="text-base font-medium">Choose your role:</Label>
-            <div className="flex justify-center gap-2 md:gap-4 mt-6">
+            <div className="flex justify-center gap-2 md:gap-4 mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-100">
               {["Student", "Instructor"].map((roleOption) => (
                 <label
                   key={roleOption}
@@ -201,13 +215,13 @@ const Auth = () => {
           </div>
 
           <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-[#0747A1] text-white">
+            <TabsList className="grid w-full grid-cols-2 bg-[#0747A1] text-white animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-75">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
             <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4 mt-4">
+              <form onSubmit={handleSignIn} className="space-y-4 mt-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-150">
                 <div>
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
@@ -230,7 +244,7 @@ const Auth = () => {
                     placeholder=""
                   />
                 </div>
-                <Button type="submit" disabled={loading} className="w-full">
+                <Button type="submit" disabled={loading} className="w-full animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-300">
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -244,7 +258,7 @@ const Auth = () => {
             </TabsContent>
 
             <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4 mt-4">
+              <form onSubmit={handleSignUp} className="space-y-4 mt-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-150">
                 <div>
                   <Label htmlFor="signup-email">Email</Label>
                   <Input
@@ -268,7 +282,7 @@ const Auth = () => {
                     minLength={6}
                   />
                 </div>
-                <Button type="submit" disabled={loading} className="w-full">
+                <Button type="submit" disabled={loading} className="w-full animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-300">
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -289,6 +303,7 @@ const Auth = () => {
           </div>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { User, LogOut, PlusCircle, Menu, X, Pencil, Trash2, Clock, Camera, Edit, BookOpen, FileText, TrendingUp, Users, Activity, BarChart3, Bell } from "lucide-react";
 import ResourceCard from "@/components/ResourceCard";
+import { useNotifications } from "@/hooks/useNotifications";
 import ProfileModal from "@/components/ProfileModal";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -75,6 +77,7 @@ const InstructorDashboard = () => {
   const [engagementRate, setEngagementRate] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { counts } = useNotifications(selectedProgram);
 
   const handleSaveProfile = (name: string, image: string) => {
     setProfileName(name);
@@ -287,6 +290,7 @@ const InstructorDashboard = () => {
       url: resourceUrl,
       file_path: filePath,
       program: selectedProgram,
+      created_by: userData.data.user.id,
       expiry_date: newResource.expiry_date ? new Date(newResource.expiry_date).toISOString() : null,
     };
 
@@ -336,31 +340,24 @@ const InstructorDashboard = () => {
   const handleDelete = async (resource: Resource) => {
     if (!confirm(`Are you sure you want to delete "${resource.title}"?`)) return;
 
-    // Optimistic update - remove immediately from UI
-    setResources(prev => prev.filter(r => r.id !== resource.id));
-    toast({ title: "Deleting resource...", description: "Please wait" });
+    const { error } = await supabase
+      .from("resources")
+      .delete()
+      .eq("id", resource.id) as any;
 
-    // Delete from Supabase database
-    const { error } = await supabase.from("resources").delete().eq("id", resource.id) as any;
-    
     if (error) {
-      toast({ title: "❌ Delete failed", description: error.message, variant: "destructive" });
-      // Revert UI on error by refetching from server
-      fetchResources();
-    } else {
-      // Success - delete file from storage
-      if (resource.file_path) {
-        await supabase.storage.from("resources").remove([resource.file_path]);
-      }
-      
-      toast({ 
-        title: "✅ Deleted Successfully!", 
-        description: `"${resource.title}" has been permanently deleted.`
-      });
-      
-      // Don't refetch - the optimistic delete stays
-      // Deleted item won't come back because it's gone from database
+      console.error("Error deleting resource:", (error as any).message || error);
+      alert("Failed to delete resource. Please try again.");
+      return;
     }
+
+    setResources((prev) => prev.filter((r) => r.id !== resource.id));
+
+    if (resource.file_path) {
+      try { await supabase.storage.from("resources").remove([resource.file_path]); } catch {}
+    }
+
+    fetchResources();
   };
 
   const handleSetExpiry = async (resource: Resource) => {
@@ -430,29 +427,18 @@ const InstructorDashboard = () => {
       window.open(resource.url, '_blank');
     } else if (resource.file_path) {
       try {
-        // Download the file from Supabase storage
-        const { data, error } = await supabase.storage
-          .from('resources')
-          .download(resource.file_path);
-        
-        if (error) {
-          throw error;
-        }
-        
-        if (data) {
-          // Create a blob URL and trigger download
-          const url = URL.createObjectURL(data);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = resource.title + (resource.type ? `.${resource.type.toLowerCase()}` : '');
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-          
+        const { data } = supabase.storage.from('resources').getPublicUrl(resource.file_path);
+        if (data?.publicUrl) {
+          window.open(data.publicUrl, '_blank');
           toast({
-            title: "✅ Downloaded Successfully!",
-            description: `${resource.title} has been downloaded.`
+            title: "✅ Opened",
+            description: `${resource.title} opened in a new tab.`
+          });
+        } else {
+          toast({
+            title: "Preview not available",
+            description: "Unable to preview this resource.",
+            variant: "destructive"
           });
         }
       } catch (error) {
@@ -471,12 +457,6 @@ const InstructorDashboard = () => {
   return (
     <div className="min-h-screen bg-background relative">
       {/* Logo */}
-      <button
-        onClick={handleSignOut}
-        className="absolute top-4 left-4 bg-[#FF8181] text-white font-bold text-lg px-4 py-2 rounded-full hover:bg-[#FF8181]/80 transition-colors z-10"
-      >
-        UR HUB
-      </button>
       {/* Top Section */}
       <header className="border-b border-border sticky top-0 z-10 bg-card">
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-4">
@@ -485,8 +465,20 @@ const InstructorDashboard = () => {
             <div></div>
 
             <div className="flex items-center gap-4">
-              {/* Notification Bell - Hidden when count is 0 */}
-              
+              {/* Notification Badges */}
+              <div className="flex items-center gap-2">
+                {counts.newResources > 0 && (
+                  <Badge className="bg-[#0091FF] text-white rounded-full px-2 py-0.5 text-xs font-bold">
+                    {counts.newResources}
+                  </Badge>
+                )}
+                {counts.newCourses > 0 && (
+                  <Badge className="bg-[#FF8181] text-white rounded-full px-2 py-0.5 text-xs font-bold">
+                    {counts.newCourses}
+                  </Badge>
+                )}
+              </div>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="relative flex items-center gap-3 cursor-pointer">
@@ -522,7 +514,6 @@ const InstructorDashboard = () => {
 
           {/* Mobile Header */}
           <div className="md:hidden flex items-center justify-between">
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="relative flex items-center gap-3 cursor-pointer">
@@ -538,23 +529,34 @@ const InstructorDashboard = () => {
               <DropdownMenuContent align="end" className="w-56 bg-white border-2 border-[#0747A1]/20 shadow-xl rounded-xl animate-in fade-in-0 zoom-in-95 duration-200">
                 <DropdownMenuLabel className="text-[#0747A1] font-bold text-base py-3">{profileName}</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-[#0747A1]/10" />
+                <DropdownMenuItem onClick={() => setShowProfileModal(true)} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
+                  <Camera className="mr-2 h-4 w-4 text-[#0747A1]" /> 
+                  <span className="text-gray-700 font-medium">Change Picture</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/instructor/programs')} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
+                  <User className="mr-2 h-4 w-4 text-[#0747A1]" /> 
+                  <span className="text-gray-700 font-medium">My Programs</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-[#0747A1]/10" />
                 <DropdownMenuItem onClick={handleSignOut} className="hover:bg-red-50 focus:bg-red-50 cursor-pointer py-3 rounded-lg mx-1">
                   <LogOut className="mr-2 h-4 w-4 text-red-600" /> 
                   <span className="text-red-600 font-medium">Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-
-          {/* Mobile Header */}
-          <div className="md:hidden flex items-center justify-between">
-            <button
-              onClick={handleSignOut}
-              className="bg-[#0747A1] text-white font-bold text-lg px-3 py-2 rounded-lg hover:bg-[#063d8c] transition-colors"
-            >
-              UR HUB
-            </button>
-
+            {/* Notification Badges */}
+            <div className="flex items-center gap-2">
+              {counts.newResources > 0 && (
+                <Badge className="bg-[#0091FF] text-white rounded-full px-2 py-0.5 text-xs font-bold">
+                  {counts.newResources}
+                </Badge>
+              )}
+              {counts.newCourses > 0 && (
+                <Badge className="bg-[#FF8181] text-white rounded-full px-2 py-0.5 text-xs font-bold">
+                  {counts.newCourses}
+                </Badge>
+              )}
+            </div>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 text-[#0747A1] hover:bg-[#E6F2FF] rounded-lg transition-colors"
@@ -731,10 +733,12 @@ const InstructorDashboard = () => {
               <Button
                 key={program}
                 onClick={() => setSelectedProgram(program)}
-                variant={selectedProgram === program ? "default" : "outline"}
+                variant="outline"
                 size="sm"
                 className={`rounded-xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap ${
-                  selectedProgram === program ? "bg-[#0747A1] text-white shadow-lg shadow-[#0A58CA]" : "hover:bg-[#E6F2FF]"
+                  selectedProgram === program
+                    ? "bg-[#E6F2FF] text-[#0747A1] border border-[#0747A1]/30"
+                    : "hover:bg-[#F2F7FF] text-[#0747A1]"
                 }`}
               >
                 {program}
@@ -744,7 +748,7 @@ const InstructorDashboard = () => {
               onClick={() => navigate('/instructor/programs')}
               variant="outline"
               size="sm"
-              className={`rounded-xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap hover:bg-[#E6F0FF] border-2 border-[#0747A1] text-[#0747A1] font-semibold`}
+              className="rounded-xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap hover:bg-[#E6F0FF] border-2 border-[#0747A1] text-[#0747A1] font-semibold"
             >
               <BookOpen className="mr-1 h-4 w-4" /> Manage Courses
             </Button>
@@ -775,7 +779,6 @@ const InstructorDashboard = () => {
                   onSetExpiry={() => handleSetExpiry(resource)}
                   showCrudIcons={true}
                 />
-                {/* Expiry Date Display */}
                 {resource.expiry_date && (
                   <div className="absolute bottom-2 left-2 bg-[#FF8181] text-white text-xs px-2 py-1 rounded-md">
                     Expires: {new Date(resource.expiry_date).toLocaleDateString()}

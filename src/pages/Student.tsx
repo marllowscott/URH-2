@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ import PreviewModal from "@/components/PreviewModal";
 import ProfileModal from "@/components/ProfileModal";
 import Fireflies from "@/components/Fireflies";
 import { useNavigate } from "react-router-dom";
+import { useNotifications } from "@/hooks/useNotifications";
 
 type Resource = {
   id: string;
@@ -65,6 +67,7 @@ const Student = () => {
   const [studentAchievements, setStudentAchievements] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { counts } = useNotifications(selectedProgram);
 
   const programs = ["Software Development", "Digital Marketing", "Product Design"];
 
@@ -233,20 +236,9 @@ const Student = () => {
     <div className="min-h-screen bg-background relative">
       <Fireflies />
       {/* Logo - Desktop (matches hero) */}
-      <button
-        onClick={handleSignOut}
-        className="hidden sm:block absolute top-4 left-4 bg-[#FF8181] text-white font-bold text-lg px-4 py-2 rounded-full hover:bg-[#FF8181]/80 transition-all duration-200 shadow-lg z-10"
-      >
-        UR HUB
-      </button>
       
       {/* Logo - Mobile */}
-      <button
-        onClick={handleSignOut}
-        className="sm:hidden absolute top-4 left-4 bg-[#FF8181] text-white font-bold text-sm px-3 py-1.5 rounded-full hover:bg-[#FF8181]/80 transition-all duration-200 shadow-lg z-10"
-      >
-        UR HUB
-      </button>
+      
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-4">
@@ -325,6 +317,52 @@ const Student = () => {
               )}
             </div>
 
+            <div className="flex items-center gap-2">
+              {counts.newResources > 0 && (
+                <Badge className="bg-[#0091FF] text-white rounded-full px-2 py-0.5 text-xs font-bold">
+                  {counts.newResources}
+                </Badge>
+              )}
+              {counts.newCourses > 0 && (
+                <Badge className="bg-[#FF8181] text-white rounded-full px-2 py-0.5 text-xs font-bold">
+                  {counts.newCourses}
+                </Badge>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="relative flex items-center gap-3 cursor-pointer">
+                    <Avatar className="ring-2 ring-[#0747A1]/30 hover:ring-[#0747A1]/50 transition-all">
+                      <AvatarImage src={profileImage} alt={profileName} className="object-cover" />
+                      <AvatarFallback className="bg-gradient-to-br from-[#0747A1] to-[#0A58CA] text-white">
+                        <User className="h-5 w-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium text-[#0747A1]">{profileName}</span>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-white border-2 border-[#0747A1]/20 shadow-xl rounded-xl animate-in fade-in-0 zoom-in-95 duration-200">
+                  <DropdownMenuLabel className="text-[#0747A1] font-bold text-base py-3">{profileName}</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-[#0747A1]/10" />
+                  <DropdownMenuItem onClick={() => setShowProfileModal(true)} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
+                    <Camera className="mr-2 h-4 w-4 text-[#0747A1]" /> 
+                    <span className="text-gray-700 font-medium">Change Picture</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/student/programs')} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
+                    <User className="mr-2 h-4 w-4 text-[#0747A1]" /> 
+                    <span className="text-gray-700 font-medium">My Programs</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-[#0747A1]/10" />
+                  <DropdownMenuItem onClick={handleSignOut} className="hover:bg-red-50 focus:bg-red-50 cursor-pointer py-3 rounded-lg mx-1">
+                    <LogOut className="mr-2 h-4 w-4 text-red-600" /> 
+                    <span className="text-red-600 font-medium">Sign Out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* Mobile Header */}
+          <div className="md:hidden flex items-center justify-between">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="relative flex items-center gap-3 cursor-pointer">
@@ -355,11 +393,18 @@ const Student = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-
-          {/* Mobile Header */}
-          <div className="md:hidden flex items-center justify-between">
-
+            <div className="flex items-center gap-2">
+              {counts.newResources > 0 && (
+                <Badge className="bg-[#0091FF] text-white rounded-full px-2 py-0.5 text-xs font-bold">
+                  {counts.newResources}
+                </Badge>
+              )}
+              {counts.newCourses > 0 && (
+                <Badge className="bg-[#FF8181] text-white rounded-full px-2 py-0.5 text-xs font-bold">
+                  {counts.newCourses}
+                </Badge>
+              )}
+            </div>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 text-[#0747A1] hover:bg-[#E6F2FF] rounded-lg transition-colors"
@@ -523,10 +568,12 @@ const Student = () => {
               <Button
                 key={program}
                 onClick={() => setSelectedProgram(program)}
-                variant={selectedProgram === program ? "default" : "outline"}
+                variant="outline"
                 size="sm"
                 className={`rounded-xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap ${
-                  selectedProgram === program ? "bg-[#0747A1] text-white shadow-lg shadow-[#0A58CA]" : "hover:bg-[#E6F0FF]"
+                  selectedProgram === program
+                    ? "bg-[#E6F2FF] text-[#0747A1] border border-[#0747A1]/30"
+                    : "hover:bg-[#F2F7FF] text-[#0747A1]"
                 }`}
               >
                 {program}
