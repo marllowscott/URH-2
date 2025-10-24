@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, PlusCircle, Menu, X, Pencil, Trash2, Clock, Camera, Edit, BookOpen, FileText, TrendingUp, Users, Activity, BarChart3, Bell } from "lucide-react";
+import { User, LogOut, PlusCircle, Menu, X, Camera, FileText, Users, Activity, BarChart3, BookOpen } from "lucide-react";
 import ResourceCard from "@/components/ResourceCard";
 import { useNotifications } from "@/hooks/useNotifications";
 import ProfileModal from "@/components/ProfileModal";
@@ -21,8 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+ 
 
 type Resource = {
   id: string;
@@ -36,16 +35,6 @@ type Resource = {
   expiry_date?: string | null;
 };
 
-type Task = {
-  id: string;
-  program: string;
-  title: string;
-  description: string | null;
-  schedule: "daily" | "weekly" | "monthly" | "ad-hoc";
-  due_at: string | null;
-  created_by: string;
-};
-
 const InstructorDashboard = () => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [selectedProgram, setSelectedProgram] = useState("Software Development");
@@ -53,7 +42,6 @@ const InstructorDashboard = () => {
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [newResource, setNewResource] = useState({ title: "", description: "", type: "", url: "", file: null as File | null, expiry_date: "" });
-  const [newTask, setNewTask] = useState({ title: "", description: "", schedule: "daily" as Task["schedule"], due_at: "" });
   const [profileName, setProfileName] = useState(() => {
     try {
       const saved = localStorage.getItem("userProfile");
@@ -72,9 +60,8 @@ const InstructorDashboard = () => {
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showTaskModal, setShowTaskModal] = useState(false);
   const [studentCount, setStudentCount] = useState(0);
-  const [engagementRate, setEngagementRate] = useState(0);
+  
   const { toast } = useToast();
   const navigate = useNavigate();
   const { counts } = useNotifications(selectedProgram);
@@ -87,37 +74,6 @@ const InstructorDashboard = () => {
     toast({ title: "Profile updated", description: "Your profile has been updated successfully." });
   };
 
-  const handleAddTask = async () => {
-    if (!newTask.title.trim()) {
-      toast({ title: "Missing Title", description: "Please enter a task title.", variant: "destructive" });
-      return;
-    }
-
-    const userData: any = await supabase.auth.getUser();
-    if (!userData?.data?.user) {
-      toast({ title: "Authentication required", description: "Please log in again.", variant: "destructive" });
-      return;
-    }
-
-    const taskData = {
-      title: newTask.title,
-      description: newTask.description || null,
-      schedule: newTask.schedule,
-      program: selectedProgram,
-      due_at: newTask.due_at ? new Date(newTask.due_at).toISOString() : null,
-      created_by: userData.data.user.id,
-    };
-
-    const { error } = await supabase.from("tasks").insert([taskData]) as any;
-
-    if (error) {
-      toast({ title: "Task creation failed", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Task added successfully!" });
-      setShowTaskModal(false);
-      setNewTask({ title: "", description: "", schedule: "daily", due_at: "" });
-    }
-  };
 
   const programs = ["Software Development", "Digital Marketing", "Product Design"];
 
@@ -152,40 +108,22 @@ const InstructorDashboard = () => {
     setStudentCount(0); // Will be updated when proper tracking is set up
   }, []);
 
-  const fetchEngagementRate = useCallback(async () => {
-    try {
-      // Calculate engagement based on course_progress
-      const { data: progressData, error } = await (supabase as any)
-        .from('course_progress')
-        .select('progress_percentage');
-      
-      if (error || !progressData || progressData.length === 0) {
-        // Default to 0% if no data available
-        setEngagementRate(0);
-        return;
-      }
-      
-      // Calculate average progress percentage across all students
-      const totalProgress = progressData.reduce((sum: number, item: any) => 
-        sum + (item.progress_percentage || 0), 0
-      );
-      const avgProgress = Math.round(totalProgress / progressData.length);
-      setEngagementRate(avgProgress);
-    } catch (err) {
-      // If table doesn't exist or error occurs, default to 0
-      setEngagementRate(0);
-    }
-  }, []);
+  
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }: any) => {
-      const session = data.session;
-      if (!session) navigate("/auth");
-      else {
-        const role = session.user.user_metadata?.role || "instructor";
-        if (role !== "instructor") navigate(role === "student" ? "/student" : "/auth");
-      }
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }: any) => {
+        const session = data.session;
+        if (!session) navigate("/auth");
+        else {
+          const role = session.user.user_metadata?.role || "instructor";
+          if (role !== "instructor") navigate(role === "student" ? "/student" : "/auth");
+        }
+      })
+      .catch(() => {
+        // Ignore transient network errors here to avoid crashing app startup
+      });
 
     const authListener: any = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) navigate("/auth");
@@ -203,7 +141,6 @@ const InstructorDashboard = () => {
   useEffect(() => {
     fetchResources();
     fetchStudentCount();
-    fetchEngagementRate();
 
     const channel = (supabase as any)
       .channel("resources-updates")
@@ -217,7 +154,7 @@ const InstructorDashboard = () => {
     return () => {
       (supabase as any).removeChannel(channel);
     };
-  }, [fetchResources, fetchStudentCount, fetchEngagementRate]);
+  }, [fetchResources, fetchStudentCount]);
 
   const handleAddResource = async () => {
     if (!newResource.title.trim()) {
@@ -498,10 +435,6 @@ const InstructorDashboard = () => {
                   <Camera className="mr-2 h-4 w-4 text-[#0747A1]" /> 
                   <span className="text-gray-700 font-medium">Change Picture</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/instructor/programs')} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
-                  <User className="mr-2 h-4 w-4 text-[#0747A1]" /> 
-                  <span className="text-gray-700 font-medium">My Programs</span>
-                </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-[#0747A1]/10" />
                 <DropdownMenuItem onClick={handleSignOut} className="hover:bg-red-50 focus:bg-red-50 cursor-pointer py-3 rounded-lg mx-1">
                   <LogOut className="mr-2 h-4 w-4 text-red-600" /> 
@@ -532,10 +465,6 @@ const InstructorDashboard = () => {
                 <DropdownMenuItem onClick={() => setShowProfileModal(true)} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
                   <Camera className="mr-2 h-4 w-4 text-[#0747A1]" /> 
                   <span className="text-gray-700 font-medium">Change Picture</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/instructor/programs')} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
-                  <User className="mr-2 h-4 w-4 text-[#0747A1]" /> 
-                  <span className="text-gray-700 font-medium">My Programs</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-[#0747A1]/10" />
                 <DropdownMenuItem onClick={handleSignOut} className="hover:bg-red-50 focus:bg-red-50 cursor-pointer py-3 rounded-lg mx-1">
@@ -598,69 +527,6 @@ const InstructorDashboard = () => {
       {/* Instructor Dashboard Header */}
       <div className="max-w-6xl mx-auto px-4 md:px-8 mt-6 md:mt-8">
 
-        {/* Dashboard Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {/* Total Resources Card */}
-          <Card className="border-l-4 border-l-[#0747A1] hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs md:text-sm text-muted-foreground mb-1">Total Resources</p>
-                  <p className="text-2xl md:text-3xl font-bold text-[#0747A1]">{resources.length}</p>
-                </div>
-                <div className="bg-[#E6F2FF] p-3 rounded-full">
-                  <FileText className="h-5 w-5 md:h-6 md:w-6 text-[#0747A1]" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Active Programs Card */}
-          <Card className="border-l-4 border-l-[#0747A1] hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs md:text-sm text-muted-foreground mb-1">Active Programs</p>
-                  <p className="text-2xl md:text-3xl font-bold text-[#0747A1]">3</p>
-                </div>
-                <div className="bg-[#E6F2FF] p-3 rounded-full">
-                  <BookOpen className="h-5 w-5 md:h-6 md:w-6 text-[#0747A1]" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Total Students Card */}
-          <Card className="border-l-4 border-l-[#0091FF] hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs md:text-sm text-muted-foreground mb-1">Total Students</p>
-                  <p className="text-2xl md:text-3xl font-bold text-[#0091FF]">{studentCount}</p>
-                </div>
-                <div className="bg-[#E6F5FF] p-3 rounded-full">
-                  <Users className="h-5 w-5 md:h-6 md:w-6 text-[#0091FF]" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Engagement Rate Card */}
-          <Card className="border-l-4 border-l-[#FDB353] hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs md:text-sm text-muted-foreground mb-1">Engagement</p>
-                  <p className="text-2xl md:text-3xl font-bold text-[#FDB353]">{engagementRate}%</p>
-                </div>
-                <div className="bg-[#FFF4E6] p-3 rounded-full">
-                  <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-[#FDB353]" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Quick Actions & Analytics Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* Quick Actions Card */}
@@ -677,19 +543,50 @@ const InstructorDashboard = () => {
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> Add New Resource
                 </Button>
-                <Button
-                  onClick={() => setShowTaskModal(true)}
-                  className="w-full bg-[#0747A1] text-white hover:bg-[#063d8c] justify-start"
-                >
-                  <Clock className="mr-2 h-4 w-4" /> Create Task
-                </Button>
-                <Button
-                  onClick={() => navigate('/instructor/programs')}
-                  variant="outline"
-                  className="w-full justify-start hover:bg-[#E6F2FF]"
-                >
-                  <BookOpen className="mr-2 h-4 w-4" /> Manage Programs
-                </Button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Card className="border-l-4 border-l-[#0747A1]">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs md:text-sm text-muted-foreground mb-1">Total Resources</p>
+                        <p className="text-lg md:text-xl font-bold text-[#0747A1]">{resources.length}</p>
+                      </div>
+                      <div className="bg-[#E6F2FF] p-2 rounded-full">
+                        <FileText className="h-4 w-4 md:h-5 md:w-5 text-[#0747A1]" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-[#0747A1]">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs md:text-sm text-muted-foreground mb-1">Active Programs</p>
+                        <p className="text-lg md:text-xl font-bold text-[#0747A1]">3</p>
+                      </div>
+                      <div className="bg-[#E6F2FF] p-2 rounded-full">
+                        <BookOpen className="h-4 w-4 md:h-5 md:w-5 text-[#0747A1]" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-[#0091FF]">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs md:text-sm text-muted-foreground mb-1">Total Students</p>
+                        <p className="text-lg md:text-xl font-bold text-[#0091FF]">{studentCount}</p>
+                      </div>
+                      <div className="bg-[#E6F5FF] p-2 rounded-full">
+                        <Users className="h-4 w-4 md:h-5 md:w-5 text-[#0091FF]" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </CardContent>
           </Card>
@@ -744,14 +641,6 @@ const InstructorDashboard = () => {
                 {program}
               </Button>
             ))}
-            <Button
-              onClick={() => navigate('/instructor/programs')}
-              variant="outline"
-              size="sm"
-              className="rounded-xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap hover:bg-[#E6F0FF] border-2 border-[#0747A1] text-[#0747A1] font-semibold"
-            >
-              <BookOpen className="mr-1 h-4 w-4" /> Manage Courses
-            </Button>
           </div>
         </div>
       </div>
@@ -852,47 +741,6 @@ const InstructorDashboard = () => {
         onSave={handleSaveProfile}
       />
 
-      {/* Add Task Modal */}
-      <Dialog open={showTaskModal} onOpenChange={setShowTaskModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Task</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Title</Label>
-              <Input value={newTask.title} onChange={(e) => setNewTask({ ...newTask, title: e.target.value })} />
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Textarea value={newTask.description} onChange={(e) => setNewTask({ ...newTask, description: e.target.value })} />
-            </div>
-            <div>
-              <Label>Schedule</Label>
-              <Select value={newTask.schedule} onValueChange={(value: any) => setNewTask({ ...newTask, schedule: value })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="ad-hoc">Ad-hoc</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Due Date (optional)</Label>
-              <Input type="datetime-local" value={newTask.due_at} onChange={(e) => setNewTask({ ...newTask, due_at: e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleAddTask} className="bg-[#0747A1] text-white hover:bg-[#063d8c]">
-              Add Task
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

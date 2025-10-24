@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Settings, Menu, X, Camera, Edit, BookOpen, FileText, TrendingUp, Award, Clock, Activity, Bell } from "lucide-react";
+import { User, LogOut, Settings, Menu, X, Camera, BookOpen, FileText, Bell } from "lucide-react";
 import ResourceCard from "@/components/ResourceCard";
 import PreviewModal from "@/components/PreviewModal";
 import ProfileModal from "@/components/ProfileModal";
@@ -63,8 +63,7 @@ const Student = () => {
   const [lastViewedCount, setLastViewedCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [newResources, setNewResources] = useState<Resource[]>([]);
-  const [studentProgress, setStudentProgress] = useState(0);
-  const [studentAchievements, setStudentAchievements] = useState(0);
+  const [readResourceIds, setReadResourceIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const navigate = useNavigate();
   const { counts } = useNotifications(selectedProgram);
@@ -77,43 +76,27 @@ const Student = () => {
     else setResources(data || []);
   }, [toast]);
 
-  const fetchStudentProgress = useCallback(async () => {
+  // Load read resource IDs for the selected program
+  const loadReadResources = useCallback(() => {
     try {
-      const userData: any = await supabase.auth.getUser();
-      if (!userData?.data?.user) {
-        setStudentProgress(0);
-        setStudentAchievements(0);
-        return;
-      }
-
-      // Fetch student's course progress
-      const { data: progressData } = await (supabase as any)
-        .from('course_progress')
-        .select('progress_percentage')
-        .eq('student_id', userData.data.user.id);
-
-      if (progressData && progressData.length > 0) {
-        // Calculate average progress
-        const avgProgress = Math.round(
-          progressData.reduce((sum: number, item: any) => sum + (item.progress_percentage || 0), 0) / progressData.length
-        );
-        setStudentProgress(avgProgress);
-      } else {
-        setStudentProgress(0);
-      }
-
-      // Fetch student's achievements/XP events
-      const { data: xpData } = await (supabase as any)
-        .from('xp_events')
-        .select('*')
-        .eq('student_id', userData.data.user.id);
-
-      setStudentAchievements(xpData?.length || 0);
-    } catch (err) {
-      setStudentProgress(0);
-      setStudentAchievements(0);
+      const saved = localStorage.getItem(`readResources_${selectedProgram}`);
+      const arr: string[] = saved ? JSON.parse(saved) : [];
+      setReadResourceIds(new Set(arr));
+    } catch {
+      setReadResourceIds(new Set());
     }
-  }, []);
+  }, [selectedProgram]);
+
+  const persistReadResources = useCallback((ids: Set<string>) => {
+    try {
+      localStorage.setItem(`readResources_${selectedProgram}`, JSON.stringify(Array.from(ids)));
+    } catch {}
+  }, [selectedProgram]);
+
+  // Load saved read resources when program changes
+  useEffect(() => {
+    loadReadResources();
+  }, [loadReadResources]);
 
   // Auth check
   useEffect(() => {
@@ -137,11 +120,10 @@ const Student = () => {
     return () => authListener.data.subscription.unsubscribe();
   }, [navigate]);
 
-  // Fetch resources and student progress
+  // Fetch resources
   useEffect(() => {
     fetchResources();
-    fetchStudentProgress();
-    
+
     const channel = (supabase as any)
       .channel("resources-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "resources" }, fetchResources)
@@ -150,53 +132,59 @@ const Student = () => {
     return () => {
       (supabase as any).removeChannel(channel);
     };
-  }, [fetchResources, fetchStudentProgress]);
+  }, [fetchResources]);
 
   // Filter by search (across all programs if searching, otherwise by selected program)
   useEffect(() => {
     const filtered = resources.filter((r) => {
       const q = deferredSearch.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         r.title.toLowerCase().includes(q) ||
         r.description?.toLowerCase().includes(q);
-      
-      // If searching, show results from all programs
+
       if (deferredSearch.trim()) {
         return matchesSearch;
       }
-      
-      // If not searching, filter by selected program
+
       return r.program === selectedProgram && matchesSearch;
     });
     setFilteredResources(filtered);
-    
-    // Update notification count and track new resources
-    const saved = localStorage.getItem(`lastViewedCount_${selectedProgram}`);
-    const lastCount = saved ? parseInt(saved) : 0;
-    const newCount = Math.max(0, filtered.length - lastCount);
-    setUnreadNotifications(newCount);
-    setLastViewedCount(lastCount);
-    
-    // Get new resources (most recent ones)
-    if (newCount > 0) {
-      const recentResources = filtered.slice(0, newCount);
-      setNewResources(recentResources);
-    } else {
-      setNewResources([]);
-    }
-  }, [deferredSearch, selectedProgram, resources]);
-  
+
+    // Compute unread based on per-resource read tracking for the selected program
+    const programResources = resources
+      .filter((r) => r.program === selectedProgram)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    const unreadList = programResources.filter((r) => !readResourceIds.has(r.id));
+    setUnreadNotifications(unreadList.length);
+    setNewResources(unreadList);
+  }, [deferredSearch, selectedProgram, resources, readResourceIds]);
+
   const markNotificationsAsRead = () => {
-    localStorage.setItem(`lastViewedCount_${selectedProgram}`, filteredResources.length.toString());
+    const programResources = resources.filter((r) => r.program === selectedProgram);
+    const next = new Set(readResourceIds);
+    programResources.forEach((r) => next.add(r.id));
+    setReadResourceIds(next);
+    persistReadResources(next);
     setUnreadNotifications(0);
     setNewResources([]);
     setShowNotifications(false);
   };
-  
+
+  const markResourceAsRead = useCallback((id: string) => {
+    setReadResourceIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      persistReadResources(next);
+      return next;
+    });
+  }, [persistReadResources]);
+
   const toggleNotifications = () => {
     setShowNotifications(!showNotifications);
   };
-  
+
   // Close notifications dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -205,7 +193,7 @@ const Student = () => {
         setShowNotifications(false);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showNotifications]);
@@ -216,6 +204,8 @@ const Student = () => {
       return;
     }
     const { data } = supabase.storage.from("resources").getPublicUrl(resource.file_path);
+    // Mark as read when opened/downloaded
+    markResourceAsRead(resource.id);
     if (data?.publicUrl) window.open(data.publicUrl, "_blank");
   };
 
@@ -236,9 +226,9 @@ const Student = () => {
     <div className="min-h-screen bg-background relative">
       <Fireflies />
       {/* Logo - Desktop (matches hero) */}
-      
+
       {/* Logo - Mobile */}
-      
+
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-4">
@@ -254,11 +244,11 @@ const Student = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-[300px] border border-[#E6E6E6] rounded-xl py-2 px-4 focus:outline-none focus:border-[#0747A1]"
               />
-              
+
               {/* Notification Icon - Only show when there are notifications */}
               {unreadNotifications > 0 && (
                 <div className="relative">
-                  <button 
+                  <button
                     onClick={toggleNotifications}
                     className="notification-bell relative p-2 hover:bg-[#E6F2FF] rounded-full transition-colors"
                   >
@@ -267,52 +257,52 @@ const Student = () => {
                       {unreadNotifications}
                     </span>
                   </button>
-                
-                {/* Notification Dropdown */}
-                {showNotifications && (
-                  <div className="notification-dropdown absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto animate-in fade-in-0 slide-in-from-top-2 duration-200">
-                    <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                      <h3 className="font-semibold text-[#0747A1]">New Resources ({unreadNotifications})</h3>
-                      <button
-                        onClick={markNotificationsAsRead}
-                        className="text-xs text-[#0747A1] hover:underline"
-                      >
-                        Mark all as read
-                      </button>
-                    </div>
-                    {newResources.length > 0 ? (
-                      <div className="divide-y divide-gray-100">
-                        {newResources.map((resource) => (
-                          <div
-                            key={resource.id}
-                            className="p-3 hover:bg-[#E6F2FF] cursor-pointer transition-colors"
-                            onClick={() => {
-                              setPreviewResource(resource);
-                              setShowPreviewModal(true);
-                              markNotificationsAsRead();
-                            }}
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className="bg-[#0747A1] p-2 rounded-lg">
-                                <FileText className="h-4 w-4 text-white" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm text-gray-900 truncate">{resource.title}</p>
-                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{resource.description || "No description"}</p>
-                                <p className="text-xs text-[#0747A1] mt-1 font-medium">{resource.type}</p>
+
+                  {/* Notification Dropdown */}
+                  {showNotifications && (
+                    <div className="notification-dropdown absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto animate-in fade-in-0 slide-in-from-top-2 duration-200">
+                      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                        <h3 className="font-semibold text-[#0747A1]">New Resources ({unreadNotifications})</h3>
+                        <button
+                          onClick={markNotificationsAsRead}
+                          className="text-xs text-[#0747A1] hover:underline"
+                        >
+                          Mark all as read
+                        </button>
+                      </div>
+                      {newResources.length > 0 ? (
+                        <div className="divide-y divide-gray-100">
+                          {newResources.map((resource) => (
+                            <div
+                              key={resource.id}
+                              className="p-3 hover:bg-[#E6F2FF] cursor-pointer transition-colors"
+                              onClick={() => {
+                                setPreviewResource(resource);
+                                setShowPreviewModal(true);
+                                markResourceAsRead(resource.id);
+                              }}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="bg-[#0747A1] p-2 rounded-lg">
+                                  <FileText className="h-4 w-4 text-white" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm text-gray-900 truncate">{resource.title}</p>
+                                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{resource.description || "No description"}</p>
+                                  <p className="text-xs text-[#0747A1] mt-1 font-medium">{resource.type}</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-6 text-center text-gray-500">
-                        <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                        <p className="text-sm">No new resources</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-6 text-center text-gray-500">
+                          <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                          <p className="text-sm">No new resources</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -344,16 +334,13 @@ const Student = () => {
                   <DropdownMenuLabel className="text-[#0747A1] font-bold text-base py-3">{profileName}</DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-[#0747A1]/10" />
                   <DropdownMenuItem onClick={() => setShowProfileModal(true)} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
-                    <Camera className="mr-2 h-4 w-4 text-[#0747A1]" /> 
+                    <Camera className="mr-2 h-4 w-4 text-[#0747A1]" />
                     <span className="text-gray-700 font-medium">Change Picture</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/student/programs')} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
-                    <User className="mr-2 h-4 w-4 text-[#0747A1]" /> 
-                    <span className="text-gray-700 font-medium">My Programs</span>
-                  </DropdownMenuItem>
+
                   <DropdownMenuSeparator className="bg-[#0747A1]/10" />
                   <DropdownMenuItem onClick={handleSignOut} className="hover:bg-red-50 focus:bg-red-50 cursor-pointer py-3 rounded-lg mx-1">
-                    <LogOut className="mr-2 h-4 w-4 text-red-600" /> 
+                    <LogOut className="mr-2 h-4 w-4 text-red-600" />
                     <span className="text-red-600 font-medium">Sign Out</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -379,16 +366,13 @@ const Student = () => {
                 <DropdownMenuLabel className="text-[#0747A1] font-bold text-base py-3">{profileName}</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-[#0747A1]/10" />
                 <DropdownMenuItem onClick={() => setShowProfileModal(true)} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
-                  <Camera className="mr-2 h-4 w-4 text-[#0747A1]" /> 
+                  <Camera className="mr-2 h-4 w-4 text-[#0747A1]" />
                   <span className="text-gray-700 font-medium">Change Picture</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/student/programs')} className="hover:bg-[#0747A1]/10 focus:bg-[#0747A1]/10 cursor-pointer py-3 rounded-lg mx-1">
-                  <User className="mr-2 h-4 w-4 text-[#0747A1]" /> 
-                  <span className="text-gray-700 font-medium">My Programs</span>
-                </DropdownMenuItem>
+
                 <DropdownMenuSeparator className="bg-[#0747A1]/10" />
                 <DropdownMenuItem onClick={handleSignOut} className="hover:bg-red-50 focus:bg-red-50 cursor-pointer py-3 rounded-lg mx-1">
-                  <LogOut className="mr-2 h-4 w-4 text-red-600" /> 
+                  <LogOut className="mr-2 h-4 w-4 text-red-600" />
                   <span className="text-red-600 font-medium">Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -470,7 +454,7 @@ const Student = () => {
         {/* Dashboard Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {/* Total Resources Card */}
-          <Card className="border-l-4 border-l-[#0747A1] hover:shadow-lg transition-shadow">
+          <Card className="border-l-4 border-l-[#0747A1] hover:shadow-lg transition-shadow md:col-start-2">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -485,7 +469,7 @@ const Student = () => {
           </Card>
 
           {/* Current Program Card */}
-          <Card className="border-l-4 border-l-[#0747A1] hover:shadow-lg transition-shadow">
+          <Card className="border-l-4 border-l-[#0747A1] hover:shadow-lg transition-shadow md:col-start-3">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -498,66 +482,7 @@ const Student = () => {
               </div>
             </CardContent>
           </Card>
-
-          {/* Progress Card */}
-          <Card className="border-l-4 border-l-[#0091FF] hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs md:text-sm text-muted-foreground mb-1">Progress</p>
-                  <p className="text-2xl md:text-3xl font-bold text-[#0091FF]">{studentProgress}%</p>
-                </div>
-                <div className="bg-[#E6F5FF] p-3 rounded-full">
-                  <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-[#0091FF]" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Achievements Card */}
-          <Card className="border-l-4 border-l-[#FDB353] hover:shadow-lg transition-shadow">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs md:text-sm text-muted-foreground mb-1">Achievements</p>
-                  <p className="text-2xl md:text-3xl font-bold text-[#FDB353]">{studentAchievements}</p>
-                </div>
-                <div className="bg-[#FFF4E6] p-3 rounded-full">
-                  <Award className="h-5 w-5 md:h-6 md:w-6 text-[#FDB353]" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
-
-        {/* Recent Activity Section - Only show if student has activity */}
-        {(studentProgress > 0 || studentAchievements > 0) && (
-          <Card className="mb-6 hover:shadow-lg transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-[#0747A1]" />
-                  <h3 className="text-lg font-semibold text-[#0747A1]">Your Progress</h3>
-                </div>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="space-y-3">
-                {studentProgress > 0 && (
-                  <div className="flex items-center gap-3 p-3 bg-[#E6F2FF] rounded-lg">
-                    <div className="w-2 h-2 bg-[#0091FF] rounded-full"></div>
-                    <p className="text-sm">Course progress: <span className="font-semibold">{studentProgress}%</span></p>
-                  </div>
-                )}
-                {studentAchievements > 0 && (
-                  <div className="flex items-center gap-3 p-3 bg-[#FFF4E6] rounded-lg">
-                    <div className="w-2 h-2 bg-[#FDB353] rounded-full"></div>
-                    <p className="text-sm">Earned <span className="font-semibold">{studentAchievements}</span> achievement{studentAchievements !== 1 ? 's' : ''}</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Program Tabs */}
@@ -570,23 +495,14 @@ const Student = () => {
                 onClick={() => setSelectedProgram(program)}
                 variant="outline"
                 size="sm"
-                className={`rounded-xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap ${
-                  selectedProgram === program
+                className={`rounded-xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap ${selectedProgram === program
                     ? "bg-[#E6F2FF] text-[#0747A1] border border-[#0747A1]/30"
                     : "hover:bg-[#F2F7FF] text-[#0747A1]"
-                }`}
+                  }`}
               >
                 {program}
               </Button>
             ))}
-            <Button
-              onClick={() => navigate('/student/programs')}
-              variant="outline"
-              size="sm"
-              className={`rounded-xl transition-all text-xs md:text-sm px-3 py-2 md:px-4 md:py-2 whitespace-nowrap hover:bg-[#E6F0FF]`}
-            >
-              Courses & Tasks
-            </Button>
           </div>
         </div>
       </div>
@@ -610,6 +526,7 @@ const Student = () => {
                 onPreview={() => {
                   setPreviewResource(resource);
                   setShowPreviewModal(true);
+                  markResourceAsRead(resource.id);
                 }}
                 onDownload={() => handleDownload(resource)}
               />

@@ -9,9 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 const Index = lazy(() => import("./pages/Index"));
 const Student = lazy(() => import("./pages/Student"));
 const Instructor = lazy(() => import("./pages/Instructor"));
-const StudentPrograms = lazy(() => import("./pages/StudentPrograms"));
-const InstructorPrograms = lazy(() => import("./pages/InstructorPrograms"));
-const CourseManager = lazy(() => import("./pages/CourseManager"));
 const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -43,12 +40,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/student" element={<Student />} />
-            <Route path="/student/programs" element={<StudentPrograms />} />
-            <Route path="/student/programs/course/:courseId" element={<StudentPrograms />} />
             <Route path="/instructor" element={<Instructor />} />
-            <Route path="/instructor/programs" element={<InstructorPrograms />} />
-            <Route path="/instructor/programs/manage/:courseId" element={<CourseManager />} />
-            <Route path="/instructor/tasks" element={<InstructorPrograms />} />
             <Route path="/auth" element={<Auth />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

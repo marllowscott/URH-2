@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 const Auth = () => {
   const [loading, setLoading] = useState(false);
@@ -21,10 +21,12 @@ const Auth = () => {
   // Separate state for Sign In
   const [signInEmail, setSignInEmail] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
+  const [showSignInPassword, setShowSignInPassword] = useState(false);
 
   // Separate state for Sign Up
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
 
   const [selectedRole, setSelectedRole] = useState("student");
 
@@ -176,7 +178,7 @@ const Auth = () => {
         {/* Logo - Mobile */}
         <button
           onClick={() => navigate("/")}
-          className="sm:hidden bg-[#FF8181] text-white font-bold text-lg px-4 py-2 rounded-full hover:bg-[#FF8181]/80 transition-all duration-200 shadow-lg mx-auto mb-6"
+          className="sm:hidden bg-[#FF8181] text-white font-bold text-lg px-4 py-2 rounded-full hover:bg-[#FF8181]/80 transition-all duration-200 shadow-lg mx-auto mb-4"
         >
           UR HUB
         </button>
@@ -188,10 +190,10 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="mb-6">
+          <div className="mb-4">
             <Label className="text-base font-medium">Choose your role:</Label>
-            <div className="flex justify-center gap-2 md:gap-4 mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-100">
-              {["Student", "Instructor"].map((roleOption) => (
+            <div className="flex justify-center gap-2 md:gap-4 mt-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-100">
+              {(["Student", "Instructor"]) .map((roleOption) => (
                 <label
                   key={roleOption}
                   className={`cursor-pointer px-4 md:px-6 py-3 rounded-lg border text-center font-medium transition-all duration-200 text-sm md:text-base ${
@@ -231,20 +233,32 @@ const Auth = () => {
                     onChange={(e) => setSignInEmail(e.target.value)}
                     required
                     placeholder="you@example.com"
+                    className="h-9"
                   />
                 </div>
                 <div>
                   <Label htmlFor="signin-password">Password</Label>
-                  <Input
-                    id="signin-password"
-                    type="password"
-                    value={signInPassword}
-                    onChange={(e) => setSignInPassword(e.target.value)}
-                    required
-                    placeholder=""
-                  />
+                  <div className="relative">
+                    <Input
+                      id="signin-password"
+                      type={showSignInPassword ? "text" : "password"}
+                      value={signInPassword}
+                      onChange={(e) => setSignInPassword(e.target.value)}
+                      required
+                      placeholder=""
+                      className="h-9 pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600"
+                      onClick={() => setShowSignInPassword((v) => !v)}
+                      aria-label={showSignInPassword ? "Hide password" : "Show password"}
+                    >
+                      {showSignInPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
-                <Button type="submit" disabled={loading} className="w-full animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-300">
+                <Button type="submit" disabled={loading} className="w-full h-9 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-300">
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -268,21 +282,33 @@ const Auth = () => {
                     onChange={(e) => setSignUpEmail(e.target.value)}
                     required
                     placeholder="you@example.com"
+                    className="h-9"
                   />
                 </div>
                 <div>
                   <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    value={signUpPassword}
-                    onChange={(e) => setSignUpPassword(e.target.value)}
-                    required
-                    placeholder="••••••••"
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      type={showSignUpPassword ? "text" : "password"}
+                      value={signUpPassword}
+                      onChange={(e) => setSignUpPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      minLength={6}
+                      className="h-9 pr-10"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600"
+                      onClick={() => setShowSignUpPassword((v) => !v)}
+                      aria-label={showSignUpPassword ? "Hide password" : "Show password"}
+                    >
+                      {showSignUpPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
-                <Button type="submit" disabled={loading} className="w-full animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-300">
+                <Button type="submit" disabled={loading} className="w-full h-9 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 ease-out delay-300">
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
